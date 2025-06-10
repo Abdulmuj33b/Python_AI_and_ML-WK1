@@ -6,9 +6,17 @@ from nltk.tokenize import word_tokenize
 from pycoingecko import CoinGeckoAPI
 import datetime
 
-# Download NLTK resources
-nltk.download('punkt')
-nltk.download('stopwords')
+# Download all required NLTK resources
+def download_nltk_resources():
+    resources = ['punkt', 'stopwords', 'punkt_tab']
+    for resource in resources:
+        try:
+            nltk.data.find(f'tokenizers/{resource}')
+        except LookupError:
+            nltk.download(resource)
+
+# Initialize resources at start
+download_nltk_resources()
 
 # Initialize CoinGecko API
 cg = CoinGeckoAPI()
@@ -33,16 +41,35 @@ def get_real_time_data():
     """Fetch real-time market data from CoinGecko API"""
     print("\n🔄 Fetching live market data...")
     try:
-        coins = cg.get_coins_markets(vs_currency='usd', ids=','.join(crypto_db.keys()))
+        # Map coin names to CoinGecko IDs
+        coin_ids = {
+            "Bitcoin": "bitcoin",
+            "Ethereum": "ethereum",
+            "Cardano": "cardano",
+            "Solana": "solana",
+            "Polkadot": "polkadot",
+            "Algorand": "algorand",
+            "Tezos": "tezos",
+            "Polygon": "matic-network",
+            "Avalanche": "avalanche-2",
+            "Cosmos": "cosmos",
+            "Stellar": "stellar",
+            "Chainlink": "chainlink"
+        }
+        
+        coins = cg.get_coins_markets(vs_currency='usd', ids=','.join(coin_ids.values()))
         market_data = {}
         
         for coin in coins:
-            name = coin['name']
-            market_data[name] = {
-                'current_price': coin['current_price'],
-                'price_change_24h': coin['price_change_percentage_24h'],
-                'market_cap': coin['market_cap']
-            }
+            # Find matching name in our database
+            for name, cg_id in coin_ids.items():
+                if coin['id'] == cg_id:
+                    market_data[name] = {
+                        'current_price': coin['current_price'],
+                        'price_change_24h': coin['price_change_percentage_24h'],
+                        'market_cap': coin['market_cap']
+                    }
+                    break
         
         # Determine price trends
         for name, data in market_data.items():
@@ -69,11 +96,23 @@ def get_real_time_data():
         return True
     except Exception as e:
         print(f"⚠️ API Error: Using cached data | {str(e)}")
+        # Initialize default values if missing
+        for coin in crypto_db:
+            if 'price_trend' not in crypto_db[coin]:
+                crypto_db[coin]['price_trend'] = "stable"
+            if 'market_cap' not in crypto_db[coin]:
+                crypto_db[coin]['market_cap'] = "medium"
         return False
 
 def process_query_nlp(user_query):
     """Use NLP to extract meaning from user query"""
-    tokens = word_tokenize(user_query.lower())
+    try:
+        tokens = word_tokenize(user_query.lower())
+    except LookupError:
+        # If tokenizer fails, download resources and retry
+        download_nltk_resources()
+        tokens = word_tokenize(user_query.lower())
+    
     stop_words = set(stopwords.words('english'))
     filtered_tokens = [word for word in tokens if word not in stop_words]
     
@@ -161,11 +200,12 @@ def get_advice(intents, entities):
         if coin in crypto_db:
             details = crypto_db[coin]
             emoji = "🚀" if "rising" in details.get('price_trend', '') else "🛡️" if "stable" in details.get('price_trend', '') else "⚠️"
+            market_cap_value = details.get('market_cap_value', 0)
+            market_cap_str = f"(${market_cap_value:,})" if market_cap_value else ""
             return (
                 f"\n📊 {coin} Report {emoji}\n"
                 f"Current Trend: {details.get('price_trend', 'N/A').title()}\n"
-                f"Market Cap: {details.get('market_cap', 'N/A').title()} "
-                f"(${details.get('market_cap_value', 0):,})\n"
+                f"Market Cap: {details.get('market_cap', 'N/A').title()} {market_cap_str}\n"
                 f"Energy Use: {details.get('energy_use', 'N/A').title()}\n"
                 f"Sustainability: {details.get('sustainability_score', 'N/A')}/10 "
                 f"{get_sustainability_emoji(details.get('sustainability_score', 0))}\n"
@@ -224,6 +264,9 @@ def get_advice(intents, entities):
     )
 
 def main():
+    # Download NLTK resources at start
+    download_nltk_resources()
+    
     # Initial data fetch
     get_real_time_data()
     
