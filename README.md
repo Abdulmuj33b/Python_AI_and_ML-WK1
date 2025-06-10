@@ -1,6 +1,7 @@
 # Python_AI_and_ML-WK1
 
 50-Word Summary:
+
 "This chatbot mimics basic AI decision-making through rule-based logic and weighted scoring systems. It analyzes cryptocurrency datasets using keyword recognition, applies multi-factor prioritization (65% profitability, 35% sustainability), and generates recommendations through sorting algorithms. The system demonstrates pattern recognition in queries and simulates expert judgment via predefined decision trees, emulating fundamental AI reasoning processes."
 
 Sample Screenshot Description:
