@@ -1,0 +1,261 @@
+# crypto_pilot_pro.py
+import time
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from pycoingecko import CoinGeckoAPI
+import datetime
+
+# Download NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')
+
+# Initialize CoinGecko API
+cg = CoinGeckoAPI()
+
+# Enhanced cryptocurrency database (static sustainability data)
+crypto_db = {
+    "Bitcoin": {"energy_use": "high", "sustainability_score": 3},
+    "Ethereum": {"energy_use": "medium", "sustainability_score": 6},
+    "Cardano": {"energy_use": "low", "sustainability_score": 8},
+    "Solana": {"energy_use": "low", "sustainability_score": 7},
+    "Polkadot": {"energy_use": "low", "sustainability_score": 9},
+    "Algorand": {"energy_use": "very low", "sustainability_score": 10},
+    "Tezos": {"energy_use": "low", "sustainability_score": 8},
+    "Polygon": {"energy_use": "low", "sustainability_score": 7},
+    "Avalanche": {"energy_use": "medium", "sustainability_score": 6},
+    "Cosmos": {"energy_use": "low", "sustainability_score": 8},
+    "Stellar": {"energy_use": "very low", "sustainability_score": 9},
+    "Chainlink": {"energy_use": "medium", "sustainability_score": 5}
+}
+
+def get_real_time_data():
+    """Fetch real-time market data from CoinGecko API"""
+    print("\n🔄 Fetching live market data...")
+    try:
+        coins = cg.get_coins_markets(vs_currency='usd', ids=','.join(crypto_db.keys()))
+        market_data = {}
+        
+        for coin in coins:
+            name = coin['name']
+            market_data[name] = {
+                'current_price': coin['current_price'],
+                'price_change_24h': coin['price_change_percentage_24h'],
+                'market_cap': coin['market_cap']
+            }
+        
+        # Determine price trends
+        for name, data in market_data.items():
+            if data['price_change_24h'] > 3:
+                trend = "rising rapidly"
+            elif data['price_change_24h'] > 1:
+                trend = "rising"
+            elif data['price_change_24h'] < -3:
+                trend = "falling sharply"
+            elif data['price_change_24h'] < -1:
+                trend = "falling"
+            else:
+                trend = "stable"
+                
+            # Update crypto_db with real-time data
+            crypto_db[name].update({
+                'price_trend': trend,
+                'market_cap_value': data['market_cap'],
+                'market_cap': 'high' if data['market_cap'] > 10e9 else 'medium' if data['market_cap'] > 1e9 else 'low',
+                'last_updated': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+        
+        print("✅ Market data updated successfully!")
+        return True
+    except Exception as e:
+        print(f"⚠️ API Error: Using cached data | {str(e)}")
+        return False
+
+def process_query_nlp(user_query):
+    """Use NLP to extract meaning from user query"""
+    tokens = word_tokenize(user_query.lower())
+    stop_words = set(stopwords.words('english'))
+    filtered_tokens = [word for word in tokens if word not in stop_words]
+    
+    # Intent recognition
+    intents = {
+        'profit': any(word in filtered_tokens for word in ['profit', 'earn', 'gain', 'return']),
+        'trend': any(word in filtered_tokens for word in ['trend', 'movement', 'direction', 'up', 'down']),
+        'sustainability': any(word in filtered_tokens for word in ['green', 'eco', 'environment', 'sustainable', 'energy']),
+        'long_term': any(word in filtered_tokens for word in ['long', 'future', 'hold', 'years']),
+        'risk': any(word in filtered_tokens for word in ['safe', 'risk', 'danger', 'volatile']),
+        'help': any(word in filtered_tokens for word in ['help', 'assist', 'support'])
+    }
+    
+    # Entity recognition (cryptocurrencies)
+    entities = [name for name in crypto_db if name.lower() in filtered_tokens]
+    
+    return intents, entities
+
+def calculate_profitability_score(coin):
+    if coin not in crypto_db:
+        return 0
+        
+    score = 0
+    trend = crypto_db[coin].get('price_trend', 'stable')
+    
+    # Trend weighting
+    if "rapidly" in trend: score += 10
+    elif "rising" in trend: score += 8
+    elif "stable" in trend: score += 5
+    else: score += 3
+        
+    # Market cap weighting
+    cap = crypto_db[coin].get('market_cap', 'medium')
+    if cap == "high": score += 8
+    elif cap == "medium": score += 5
+    else: score += 2
+        
+    return score
+
+def get_sustainability_emoji(score):
+    if score >= 8: return "🌿♻️"
+    if score >= 6: return "🌱"
+    return "⚡"
+
+def generate_disclaimer():
+    return (
+        "\n⚠️ **CRYPTO RISK DISCLAIMER** ⚠️\n"
+        "1. Cryptocurrencies are HIGHLY VOLATILE\n"
+        "2. Past performance ≠ future results\n"
+        "3. Only invest what you can afford to lose\n"
+        "4. This is NOT financial advice\n"
+        "5. ALWAYS do your own research (DYOR)!\n"
+    )
+
+def get_advice(intents, entities):
+    # Help response
+    if intents['help']:
+        return (
+            "I'm CryptoPilot Pro ✈️, your AI investment assistant!\n"
+            "Ask me about:\n"
+            "- Profitable cryptocurrencies 📈\n"
+            "- Market trends ↗️↘️\n"
+            "- Eco-friendly coins 🌱\n"
+            "- Long-term strategies 🚀\n"
+            "- Risk assessment ⚠️\n"
+            "Or name a coin for detailed analysis!\n"
+            + generate_disclaimer()
+        )
+    
+    # Risk assessment
+    if intents['risk']:
+        return (
+            "🔒 Crypto Risk Assessment:\n"
+            "• ALL cryptocurrencies carry substantial risk\n"
+            "• Market volatility can exceed 20% DAILY\n"
+            "• Regulatory changes can impact value overnight\n"
+            "• Technical vulnerabilities exist in all projects\n"
+            "• Consider stablecoins for lower volatility\n"
+            + generate_disclaimer()
+        )
+    
+    # Single coin analysis
+    if entities:
+        coin = entities[0]
+        if coin in crypto_db:
+            details = crypto_db[coin]
+            emoji = "🚀" if "rising" in details.get('price_trend', '') else "🛡️" if "stable" in details.get('price_trend', '') else "⚠️"
+            return (
+                f"\n📊 {coin} Report {emoji}\n"
+                f"Current Trend: {details.get('price_trend', 'N/A').title()}\n"
+                f"Market Cap: {details.get('market_cap', 'N/A').title()} "
+                f"(${details.get('market_cap_value', 0):,})\n"
+                f"Energy Use: {details.get('energy_use', 'N/A').title()}\n"
+                f"Sustainability: {details.get('sustainability_score', 'N/A')}/10 "
+                f"{get_sustainability_emoji(details.get('sustainability_score', 0))}\n"
+                f"Profit Score: {calculate_profitability_score(coin)}/18\n"
+                f"Last Updated: {details.get('last_updated', 'Unknown')}\n"
+                + generate_disclaimer()
+            )
+    
+    # Profitability-focused recommendation
+    if intents['profit'] or intents['trend']:
+        profitable_coins = [(coin, calculate_profitability_score(coin)) 
+                          for coin in crypto_db]
+        profitable_coins.sort(key=lambda x: x[1], reverse=True)
+        
+        response = "🚀 Top Growth Opportunities:\n"
+        for i, (coin, score) in enumerate(profitable_coins[:5], 1):
+            response += f"{i}. {coin}: Profit Score {score}/18 | Trend: {crypto_db[coin].get('price_trend', 'N/A').title()}\n"
+        return response + generate_disclaimer()
+
+    # Sustainability-focused recommendation
+    if intents['sustainability']:
+        sustainable_coins = [(coin, crypto_db[coin]['sustainability_score']) 
+                           for coin in crypto_db]
+        sustainable_coins.sort(key=lambda x: x[1], reverse=True)
+        
+        response = "🌍 Eco-Friendly Leaders:\n"
+        for i, (coin, score) in enumerate(sustainable_coins[:5], 1):
+            response += f"{i}. {coin}: {score}/10 {get_sustainability_emoji(score)} | Energy: {crypto_db[coin]['energy_use'].title()}\n"
+        return response + generate_disclaimer()
+
+    # Balanced recommendation
+    if intents['long_term']:
+        ranked_coins = []
+        for coin in crypto_db:
+            profit = calculate_profitability_score(coin)
+            sustain = crypto_db[coin]['sustainability_score']
+            total = (profit * 0.6) + (sustain * 0.4)
+            ranked_coins.append((coin, total, profit, sustain))
+        
+        ranked_coins.sort(key=lambda x: x[1], reverse=True)
+        
+        response = "🔮 Best Long-Term Holdings:\n"
+        for i, (coin, total, profit, sustain) in enumerate(ranked_coins[:5], 1):
+            response += (f"{i}. {coin}: Total {total:.1f}/20 "
+                         f"(Profit: {profit}/18, "
+                         f"Eco: {sustain}/10) "
+                         f"{get_sustainability_emoji(sustain)}\n")
+        return response + generate_disclaimer()
+    
+    # Default response
+    return (
+        "I'm CryptoPilot Pro ✈️, your AI investment assistant!\n"
+        "Try asking:\n• 'Which cryptos are trending up?'\n"
+        "• 'Show me eco-friendly coins'\n• 'Is Bitcoin a good investment?'\n"
+        + generate_disclaimer()
+    )
+
+def main():
+    # Initial data fetch
+    get_real_time_data()
+    
+    print("""
+    ✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️
+       CRYPTO PILOT PRO ACTIVATED!       
+    AI-Powered Investment Intelligence
+    ✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️✈️
+    """)
+    print(generate_disclaimer())
+    print("Type 'help' for options or 'refresh' for new market data\n")
+
+    while True:
+        user_input = input("\nYou: ").strip()
+        if not user_input:
+            continue
+            
+        if user_input.lower() in ['exit', 'bye', 'quit', 'q']:
+            print("\nCryptoPilot: Safe investing! Remember to diversify and never risk more than you can afford to lose. ✈️💼")
+            break
+            
+        if user_input.lower() == 'refresh':
+            get_real_time_data()
+            continue
+        
+        print("\nCryptoPilot: ", end='')
+        time.sleep(0.5)
+        
+        # Process query with NLP
+        intents, entities = process_query_nlp(user_input)
+        response = get_advice(intents, entities)
+        print(response)
+
+if __name__ == "__main__":
+    main()
